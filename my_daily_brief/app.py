@@ -315,7 +315,7 @@ with col3:
 
 # --- Bottom Section: AI Assistant ---
 st.markdown("---")
-st.markdown("### ▣ AI ASSISTANT")
+st.markdown("### ▣ AI Chatbot")
 
 if "messages" not in st.session_state:
     st.session_state.messages = []
