@@ -53,7 +53,7 @@ def get_fun_fact():
     return random.choice(facts)
 
 # Page Config
-st.set_page_config(page_title="CHECK BOX // BRIEF", layout="wide", page_icon="▣")
+st.set_page_config(page_title="Now Brief", layout="wide", page_icon="▣")
 
 # --- Custom CSS for 'Check Box' Design ---
 st.markdown("""
@@ -284,34 +284,54 @@ with col2:
 with col3:
     st.markdown("### MARKET VALUE")
     
-    usd_amount = st.number_input("USD", min_value=0.0, value=1.0, label_visibility="collapsed")
-    inr_amount = usd_amount * 89.23
+    # Currency Selection
+    currency_options = ["USD", "EUR", "GBP", "JPY", "AUD", "CAD", "CHF", "CNY", "SEK", "NZD"]
     
-    st.markdown(f"<h1 style='color:#fff'>₹ {inr_amount:,.2f}</h1>", unsafe_allow_html=True)
-    st.caption("Current Conversion Rate")
-    
-    # Pill Bar Chart
-    fig = go.Figure()
-    fig.add_trace(go.Bar(
-        x=['USD', 'INR'],
-        y=[usd_amount, inr_amount/100], # Scaled
-        marker_color=['#ccff00', '#ff9900'],
-        text=['$', '₹'],
-        textposition='auto',
-    ))
-    fig.update_layout(
-        plot_bgcolor='rgba(0,0,0,0)',
-        paper_bgcolor='rgba(0,0,0,0)',
-        font=dict(color='#fff', family="Inter"),
-        xaxis=dict(showgrid=False),
-        yaxis=dict(showgrid=False, showticklabels=False),
-        margin=dict(l=0, r=0, t=20, b=0),
-        height=200,
-        bargap=0.4
-    )
-    fig.update_traces(marker_line_width=0, selector=dict(type="bar"))
-    # Round corners workaround for Plotly bars isn't perfect, but we keep it clean
-    st.plotly_chart(fig, use_container_width=True)
+    c_sel, c_input = st.columns([1, 2])
+    with c_sel:
+        base_currency = st.selectbox("Currency", currency_options, label_visibility="collapsed")
+    with c_input:
+        amount = st.number_input("Amount", min_value=0.0, value=1.0, label_visibility="collapsed")
+
+    # Fetch Exchange Rate
+    try:
+        # Using open.er-api.com (No API Key required)
+        forex_url = f"https://open.er-api.com/v6/latest/{base_currency}"
+        forex_response = requests.get(forex_url)
+        forex_data = forex_response.json()
+        
+        if forex_response.status_code == 200:
+            inr_rate = forex_data['rates']['INR']
+            converted_amount = amount * inr_rate
+            
+            st.markdown(f"<h1 style='color:#fff'>₹ {converted_amount:,.2f}</h1>", unsafe_allow_html=True)
+            st.caption(f"1 {base_currency} = ₹ {inr_rate:,.2f}")
+            
+            # Pill Bar Chart
+            fig = go.Figure()
+            fig.add_trace(go.Bar(
+                x=[base_currency, 'INR'],
+                y=[amount, converted_amount], # Note: Visualizing raw amounts might be skewed if rates are huge (e.g. JPY), but keeping it simple for now as per request
+                marker_color=['#ccff00', '#ff9900'],
+                text=[f"{amount:,.0f}", f"₹{converted_amount:,.0f}"], # Simplified text
+                textposition='auto',
+            ))
+            fig.update_layout(
+                plot_bgcolor='rgba(0,0,0,0)',
+                paper_bgcolor='rgba(0,0,0,0)',
+                font=dict(color='#fff', family="Inter"),
+                xaxis=dict(showgrid=False),
+                yaxis=dict(showgrid=False, showticklabels=False),
+                margin=dict(l=0, r=0, t=20, b=0),
+                height=200,
+                bargap=0.4
+            )
+            fig.update_traces(marker_line_width=0, selector=dict(type="bar"))
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+             st.error("Rate Unavailable")
+    except Exception:
+        st.error("Connection Error")
 
 # --- Bottom Section: AI Assistant ---
 st.markdown("---")
