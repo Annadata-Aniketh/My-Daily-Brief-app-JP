@@ -20,7 +20,7 @@
 ## 📑 Table of Contents
 
 - [🚀 My Daily Brief](#-my-daily-brief)
-  - [📸 visual Preview](#-visual-preview)
+  - [📸 Visual Preview](#-visual-preview)
   - [� Table of Contents](#-table-of-contents)
   - [💡 About](#-about)
   - [🛠️ Tech Stack](#-tech-stack)
@@ -46,7 +46,7 @@ Powered by **Google Gemini AI**, it doesn't just show you data—it interprets i
 
 *   **Core:** Python 3.9+ 🐍
 *   **Web Framework:** Streamlit (Custom CSS & Components)
-*   **AI Engine:** Google Gemini (2.0 Flash/Pro Fallback System) 🤖
+*   **AI Engine:** Google Gemini (2.5/2.0 Flash/Pro Fallback System) 🤖
 *   **Data Visualization:** Plotly & Plotly Express 📊
 *   **Financial Data:** yFinance (Yahoo Finance) 📈
 *   **APIs:** OpenWeatherMap, NewsAPI, ExchangeRate-API

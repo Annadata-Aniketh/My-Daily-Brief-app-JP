@@ -12,19 +12,21 @@ import random
 import yfinance as yf
 
 # Load environment variables
-load_dotenv()
+load_dotenv(override=True)
 
 # Configure Gemini
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 def generate_gemini_content_safe(prompt):
     """
     Wrapper to handle model fallback across multiple available Gemini versions.
-    Tries 2.0 Flash/Pro, then 1.5 Flash/Pro.
+    Tries 2.5 Pro/Flash, then 2.0 Pro/Flash.
     """
     models_to_try = [
+        "gemini-2.5-pro",
+        "gemini-2.5-flash",
+        "gemini-2.0-pro-exp-02-05",
         "gemini-2.0-flash-001",
-        "gemini-2.0-pro-exp-02-05", # Experimental Pro
-        "gemini-2.0-flash-lite-preview-02-05" # Cost efficient
+        "gemini-2.0-flash-lite-preview-02-05" 
     ]
     
     last_exception = None
