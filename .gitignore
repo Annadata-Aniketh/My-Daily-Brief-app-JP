@@ -1,0 +1,14 @@
+# Environment variables
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# OS
+.DS_Store
+
+# Virtual Environments
+venv_macos/
+venv_windows/
