@@ -25,18 +25,6 @@ else
     source "$VENV_NAME/bin/activate"
 fi
 
-# Function to wait for the port and then open the browser
-(
-    # Wait for up to 15 seconds for port 8501 to become available
-    for i in {1..15}; do
-        if nc -z localhost 8501 2>/dev/null; then
-            open "http://localhost:8501"
-            exit 0
-        fi
-        sleep 1
-    done
-    echo "Timed out waiting for Streamlit to start."
-) &
 
 # Run the app
 echo "Starting My Daily Brief..."

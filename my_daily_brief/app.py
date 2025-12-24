@@ -2,47 +2,79 @@ import streamlit as st
 import streamlit.components.v1 as components
 import requests
 import os
+import subprocess
+import time
 from dotenv import load_dotenv
-import google.generativeai as genai
+import ollama
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 from datetime import datetime
 import random
 import yfinance as yf
+from gtts import gTTS
+from io import BytesIO
 
 # Load environment variables
 load_dotenv(override=True)
 
-# Configure Gemini
-genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
-def generate_gemini_content_safe(prompt):
+# --- Auto-start Ollama ---
+@st.cache_resource
+def ensure_ollama_running():
     """
-    Wrapper to handle model fallback across multiple available Gemini versions.
-    Tries 2.5 Pro/Flash, then 2.0 Pro/Flash.
+    Checks if Ollama is running. If not, attempts to start it.
     """
-    models_to_try = [
-        "gemini-2.5-pro",
-        "gemini-2.5-flash",
-        "gemini-2.0-pro-exp-02-05",
-        "gemini-2.0-flash-001",
-        "gemini-2.0-flash-lite-preview-02-05" 
-    ]
-    
-    last_exception = None
-    for model_name in models_to_try:
+    try:
+        # Check if running
+        requests.get("http://localhost:11434")
+    except requests.exceptions.ConnectionError:
+        print("Ollama not running. Starting 'ollama serve'...")
         try:
-            curr_model = genai.GenerativeModel(model_name)
-            return curr_model.generate_content(prompt)
-        except Exception as e:
-            last_exception = e
-            continue
+            # Start in background, suppressing output to keep console clean
+            subprocess.Popen(["ollama", "serve"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             
-    # If all fail, raise the last exception
-    if last_exception:
-        raise last_exception
-    else:
-        raise Exception("All models failed silently.")
+            # Wait for it to come up
+            attempts = 0
+            while attempts < 10:
+                try:
+                    requests.get("http://localhost:11434")
+                    print("Ollama started successfully.")
+                    return
+                except requests.exceptions.ConnectionError:
+                    time.sleep(1)
+                    attempts += 1
+            print("Warning: Timed out waiting for Ollama to start.")
+        except FileNotFoundError:
+            st.error("Ollama not found. Please install Ollama from ollama.com")
+            
+ensure_ollama_running()
+
+
+# Configure Ollama
+# No API key needed for local Ollama
+
+def generate_ollama_content(prompt):
+    """
+    Generator that yields chunks of text from Ollama.
+    """
+    model_name = "llama3.2:3b"
+    
+    try:
+        response_stream = ollama.chat(
+            model=model_name, 
+            messages=[{'role': 'user', 'content': prompt}], 
+            stream=True
+        )
+        for chunk in response_stream:
+            content = chunk['message']['content']
+            yield content
+
+    except Exception as e:
+        # If streaming fails immediately (e.g. connection), yield error
+        if "Connection refused" in str(e) or "client error" in str(e).lower():
+             raise Exception(f"Ollama server not reachable. Run 'ollama serve'. Error: {e}")
+        else:
+             raise e
 
 # --- Helper Functions ---
 def get_greeting():
@@ -125,24 +157,7 @@ def load_data_on_click(session_key, btn_text, fetch_func):
         return None
     return st.session_state[session_key]
 
-def generate_daily_briefing(weather_summary, news_headlines):
-    try:
-        # Fallback if no news/weather
-        if not weather_summary or not news_headlines:
-             return "Welcome to your day! Check the dashboard for the latest updates."
 
-        prompt = f"""
-        Generate a witty, 3-sentence executive summary of the day based on this info:
-        Weather: {weather_summary}
-        News: {news_headlines}
-        
-        Keep it professional yet engaging, like a personal assistant.
-        Keep it professional yet engaging, like a personal assistant.
-        """
-        response = generate_gemini_content_safe(prompt)
-        return response.text
-    except Exception:
-        return "Ready to conquer the day? Check out your dashboard below!"
 
 # Page Config
 st.set_page_config(page_title="Now Brief", layout="wide", page_icon="▣")
@@ -324,44 +339,138 @@ c1, c2, c3 = st.columns([2, 2, 1])
 with c1:
     st.markdown(f"<h1 style='margin-bottom: 0;'>My Daily Brief</h1>", unsafe_allow_html=True)
     current_time = datetime.now().strftime("%B %d, %Y | %I:%M %p")
-    st.markdown(f"<p style='color: #888; margin-top: -10px;'>{get_greeting()} &nbsp; <span style='color: #ccff00;'>{current_time}</span></p>", unsafe_allow_html=True)
+    
+    # --- Dynamic Greeting Logic ---
+    greeting_text = get_greeting() # Default
+    
+    # Try to generate dynamic if weather exists and not cached
+    w_data_g = st.session_state.get('weather_data')
+    if w_data_g and 'dynamic_greeting' not in st.session_state:
+        try:
+            temp_g = w_data_g['full']['main']['temp']
+            desc_g = w_data_g['full']['weather'][0]['description']
+            prompt_g = f"Generate a short, stimulating greeting (max 8 words) for a user at {current_time} where the weather is {desc_g}, {temp_g}C. No quotes."
+            
+            # Non-streaming for this small piece
+            full_g = ""
+            for chunk in generate_ollama_content(prompt_g):
+                full_g += chunk
+            st.session_state['dynamic_greeting'] = full_g.strip()
+        except:
+             pass # Fail silently to default
+
+    if 'dynamic_greeting' in st.session_state:
+        greeting_text = st.session_state['dynamic_greeting']
+
+    st.markdown(f"<p style='color: #888; margin-top: -10px;'>{greeting_text} &nbsp; <span style='color: #ccff00;'>{current_time}</span></p>", unsafe_allow_html=True)
 
 with c2:
+    # --- Daily Briefing Logic (Streaming) ---
     # Check Session State for Briefing Data
     w_data = st.session_state.get('weather_data')
     n_data = st.session_state.get('news_data')
     
     w_summary = w_data['summary'] if w_data else "Load Weather below"
     n_headlines = n_data['headlines'] if n_data else "Load News below"
+
+    briefing_text = st.session_state.get('daily_briefing_text', "")
     
-    # Only generate fresh briefing if data exists and no briefing is cached, OR just show generic
-    # To save API, we'll only generate if both are present.
-    if w_data and n_data:
-        briefing = generate_daily_briefing(w_summary, n_headlines)
-    else:
-        briefing = "Please load Weather and News to generate your AI Briefing."
+    # Placeholder for the briefing card
+    briefing_placeholder = st.empty()
+    
+    # Define the HTML template function to avoid repetition
+    def render_briefing_card(text, outfit_text):
+        briefing_placeholder.markdown(
+            f"""
+            <div style="background-color: #1a1a1a; padding: 15px; border-radius: 12px; border-left: 4px solid #ccff00; height: 100%;">
+                <div style="font-size: 0.8rem; color: #ccff00; font-weight: 600; margin-bottom: 4px;">DAILY BRIEFING</div>
+                <div style="color: #ddd; font-size: 0.9rem; margin-bottom: 8px;">{text}</div>
+                <div style="font-size: 0.85rem; color: #888; font-style: italic;">{outfit_text}</div>
+            </div>
+            """, 
+            unsafe_allow_html=True
+        )
 
     outfit = "Check outside!"
     if w_data:
         outfit = get_outfit_recommendation(w_data['full']['main']['temp'], w_data['full']['weather'][0]['description'])
+
+    # If we have data but NO briefing yet, generate it
+    if w_data and n_data and not briefing_text:
+        prompt = f"""
+        Generate a witty, 3-sentence executive summary of the day based on this info:
+        Weather: {w_summary}
+        News: {n_headlines}
         
-    st.markdown(
-        f"""
-        <div style="background-color: #1a1a1a; padding: 15px; border-radius: 12px; border-left: 4px solid #ccff00; height: 100%;">
-            <div style="font-size: 0.8rem; color: #ccff00; font-weight: 600; margin-bottom: 4px;">DAILY BRIEFING</div>
-            <div style="color: #ddd; font-size: 0.9rem; margin-bottom: 8px;">{briefing}</div>
-            <div style="font-size: 0.85rem; color: #888; font-style: italic;">{outfit}</div>
-        </div>
-        """, 
-        unsafe_allow_html=True
-    )
+        Keep it professional yet engaging, like a personal assistant.
+        """
+        try:
+            full_text = ""
+            # Render initial loading state
+            render_briefing_card("Thinking...", outfit)
+            
+            # Stream response
+            for chunk in generate_ollama_content(prompt):
+                full_text += chunk
+                render_briefing_card(full_text, outfit)
+            
+            # Save to session
+            st.session_state['daily_briefing_text'] = full_text
+            briefing_text = full_text
+            
+        except Exception as e:
+            briefing_text = "Ready to conquer the day? (AI Connection Issue)"
+            st.session_state['daily_briefing_text'] = briefing_text
+            render_briefing_card(briefing_text, outfit)
+            
+    elif not briefing_text:
+         # No data loaded yet
+         render_briefing_card("Please load Weather and News to generate your AI Briefing.", outfit)
+    else:
+        # Already have briefing, just show it
+        render_briefing_card(briefing_text, outfit)
+    
+    # --- Audio Briefing ---
+    if briefing_text and briefing_text != "Please load Weather and News to generate your AI Briefing.":
+        # Cache audio to avoid re-generating
+        if 'briefing_audio' not in st.session_state or st.session_state.get('briefing_text_hash') != hash(briefing_text):
+            try:
+                tts = gTTS(briefing_text, lang='en')
+                audio_buffer = BytesIO()
+                tts.write_to_fp(audio_buffer)
+                st.session_state['briefing_audio'] = audio_buffer
+                st.session_state['briefing_text_hash'] = hash(briefing_text)
+            except Exception as e:
+                # If offline/error, just skip audio
+                pass
+        
+        if 'briefing_audio' in st.session_state:
+            st.audio(st.session_state['briefing_audio'], format='audio/mp3')
 
 with c3:
+    # --- AI Fun Fact ---
+    if 'ai_fun_fact' not in st.session_state:
+        # Default placeholder
+        st.session_state['ai_fun_fact'] = "Did you know? Octopuses have three hearts."
+        
+        # Try generate
+        try:
+             prompt_f = "Tell me a random, mind-blowing fun fact. Max 1 sentence. No intro."
+             fact_text = ""
+             for chunk in generate_ollama_content(prompt_f):
+                 fact_text += chunk
+             if fact_text:
+                 st.session_state['ai_fun_fact'] = fact_text.strip().strip('"')
+        except:
+            pass
+
+    fact_content = st.session_state['ai_fun_fact']
+
     st.markdown(
         f"""
         <div style="background-color: #1a1a1a; padding: 15px; border-radius: 12px; border-left: 4px solid #00bfff;">
             <div style="font-size: 0.8rem; color: #00bfff; font-weight: 600; margin-bottom: 4px;">DID YOU KNOW?</div>
-            <div style="font-style: italic; color: #ddd; font-size: 0.9rem;">"{get_fun_fact()}"</div>
+            <div style="font-style: italic; color: #ddd; font-size: 0.9rem;">"{fact_content}"</div>
         </div>
         """, 
         unsafe_allow_html=True
@@ -437,6 +546,24 @@ with col1:
                 st.plotly_chart(fig, use_container_width=True)
         except:
              st.info("Forecast unavailable")
+
+        # --- AI Weather Analyst ---
+        st.markdown("---")
+        if st.button("🌤️ AI Insight", use_container_width=True):
+             with st.spinner("Analyzing weather patterns..."):
+                 desc = full_data['weather'][0]['description']
+                 w_speed = full_data['wind']['speed']
+                 w_prompt = f"Analyze: Weather '{desc}', Temp {temp}C, Humidity {humidity}%, Wind {w_speed}m/s. Provide 3 short bullet points: 1) Outfit 2) Best Activity 3) Health Note. No intro."
+                 
+                 w_insight = ""
+                 w_cont = st.empty()
+                 for chunk in generate_ollama_content(w_prompt):
+                     w_insight += chunk
+                     w_cont.markdown(f"""
+                     <div style="background-color:#222; padding:10px; border-radius:8px; font-size:0.85rem; border:1px solid #444;">
+                        {w_insight}
+                     </div>
+                     """, unsafe_allow_html=True)
     else:
         st.info("Enter city and click 'Get Weather'")
 
@@ -514,6 +641,19 @@ with col3:
             display_mini_metric(row1_c2, market_metrics[1][0], market_metrics[1][1], market_metrics[1][2]) # SPY
             display_mini_metric(row2_c1, market_metrics[2][0], market_metrics[2][1], market_metrics[2][2]) # NIFTY
             display_mini_metric(row2_c2, market_metrics[3][0], market_metrics[3][1], market_metrics[3][2]) # SENSEX
+            
+            # --- AI Market Mood ---
+            if st.button("🔮 Analyze Mood", use_container_width=True):
+                # Format data for AI
+                changes_str = ", ".join([f"{item[0]}: {item[2]:.2f}%" for item in market_metrics])
+                prompt_m = f"Given these 24h market changes: {changes_str}. Give a witty, 1-sentence 'Market Vibe' summary. No quotes."
+                
+                with st.spinner("Analyzing markets..."):
+                    m_container = st.empty()
+                    f_text = ""
+                    for chunk in generate_ollama_content(prompt_m):
+                        f_text += chunk
+                        m_container.info(f"**Vibe:** {f_text}")
     else:
         st.info("Load data to see live markets.")
     
@@ -575,34 +715,98 @@ c_focus, c_vibe = st.columns([2, 1])
 
 # --- Focus Zone (Left) ---
 with c_focus:
-    st.markdown("### ⚡ FOCUS ZONE")
+    c_title, c_mode = st.columns([2, 1])
+    c_title.markdown("### ⚡ FOCUS ZONE")
+    tough_love = c_mode.toggle("🥊 Tough Love")
     
     if 'tasks' not in st.session_state:
         st.session_state['tasks'] = []
     
     # Add Task
     with st.form("focus_form", clear_on_submit=True):
-        c_in, c_submit = st.columns([3, 1])
+        c_in, c_add, c_ai = st.columns([3, 1, 1.5])
         with c_in:
             task_input = st.text_input("New Task", placeholder="What needs to be done?", label_visibility="collapsed")
-        with c_submit:
-            submitted = st.form_submit_button("Add")
+        with c_add:
+            submitted_add = st.form_submit_button("Add")
+        with c_ai:
+            submitted_ai = st.form_submit_button("✨ AI Breakdown")
         
-        if submitted and task_input:
-            st.session_state['tasks'].append(task_input)
-            st.rerun()
+        if task_input:
+            if submitted_add:
+                st.session_state['tasks'].append(task_input)
+                st.rerun()
+            elif submitted_ai:
+                with st.spinner("Breaking down task..."):
+                    tone_instruction = "Be helpful and concise."
+                    if tough_love:
+                        tone_instruction = "Be strict, demanding, and direct. No fluff. Order the user."
+                    
+                    prompt = f"Break down the task '{task_input}' into 3-4 actionable, single-line sub-tasks. {tone_instruction} Output ONLY the lines."
+                    
+                    # Consume the generator
+                    full_text = ""
+                    for chunk in generate_ollama_content(prompt):
+                        full_text += chunk
+                    
+                    # Process lines
+                    subtasks = [line.strip() for line in full_text.split('\n') if line.strip()]
+                    # Filter out bullets if model produces them
+                    subtasks = [s.lstrip('-*•1234567890. ') for s in subtasks]
+                    
+                    st.session_state['tasks'].extend(subtasks)
+                    st.rerun()
 
     # Task List
     if st.session_state['tasks']:
-         # Use list so we can modify it while iterating (though pop/rerun breaks loop anyway so enumeration is fine)
-         # Using a copy just in case, but rerun stops script immediately.
-         for i, task in enumerate(st.session_state['tasks']):
+        # Use list so we can modify it while iterating
+        for i, task in enumerate(st.session_state['tasks']):
             # Use the task name AS the label so it aligns perfectly
             if st.checkbox(task, key=f"fz_task_{i}"):
                 st.session_state['tasks'].pop(i)
                 st.rerun()
+        
+        if st.button("⏱️ Estimate Time"):
+            with st.spinner("Calculating..."):
+                tasks_str = ", ".join(st.session_state['tasks'])
+                tone_est = "Return a short estimate like '2 hours'."
+                if tough_love:
+                    tone_est = "Be a tough coach. Call out procrastination. Give a strict estimate."
+                
+                p_est = f"Estimate the total time for these tasks: {tasks_str}. {tone_est}"
+                est_text = ""
+                for chunk in generate_ollama_content(p_est):
+                    est_text += chunk
+                st.caption(f"**Estimate:** {est_text}")
+
     else:
         st.info("No active tasks. Time to relax or plan ahead! 🚀")
+
+    # --- AI Quick Assist ---
+    st.markdown("---")
+    with st.expander("⚡ AI Quick Assist"):
+        st.caption("Ask me anything or use quick actions.")
+        quick_input = st.text_area("Request", height=70, label_visibility="collapsed", placeholder="Draft an email, explain a concept...")
+        
+        c_qa1, c_qa2, c_qa3 = st.columns(3)
+        do_draft = c_qa1.button("✉️ Draft")
+        do_brain = c_qa2.button("💡 Ideas")
+        do_xplain = c_qa3.button("🎓 Explain")
+        
+        qa_prompt = ""
+        if do_draft and quick_input:
+            qa_prompt = f"Draft a professional email/message about: {quick_input}"
+        elif do_brain and quick_input:
+            qa_prompt = f"Brainstorm creative ideas for: {quick_input}"
+        elif do_xplain and quick_input:
+            qa_prompt = f"Explain this concept simply: {quick_input}"
+        
+        if qa_prompt:
+            qa_container = st.empty()
+            full_qa = ""
+            for chunk in generate_ollama_content(qa_prompt):
+                full_qa += chunk
+                qa_container.markdown(full_qa)
 
 # --- Vibe Station (Right) ---
 with c_vibe:
@@ -615,19 +819,58 @@ with c_vibe:
         "Lo-Fi Study": "https://open.spotify.com/embed/playlist/0vvXsWCC9xrXsKd4FyS8kM" 
     }
     
-    # Auto-select based on time for default
-    default_mood = "Morning Chill"
+    # Auto-select based on time for default (only if not already set)
     h = datetime.now().hour
-    if 12 <= h < 18: default_mood = "Focus Flow"
-    elif h >= 18: default_mood = "Upbeat Energy"
+    if 'selected_mood' not in st.session_state:
+        default_mood = "Morning Chill"
+        if 12 <= h < 18: default_mood = "Focus Flow"
+        elif h >= 18: default_mood = "Upbeat Energy"
+        st.session_state['selected_mood'] = default_mood
 
-    # Ensure index is valid
+    # Contextual DJ Logic
+    if st.button("✨ AI Pick"):
+         with st.spinner("Listening to the vibe..."):
+             # Gather Context
+             ctx_weather = "Unknown"
+             if st.session_state.get('weather_data'):
+                 ctx_weather = st.session_state['weather_data']['summary']
+             
+             ctx_tasks = len(st.session_state.get('tasks', []))
+             
+             p_dj = f"Select the best playlist from {list(mood_options.keys())} for a user where Weather={ctx_weather}, Time={h}:00, PendingTasks={ctx_tasks}. Return ONLY the exact playlist name."
+             
+             ai_pick = ""
+             for chunk in generate_ollama_content(p_dj):
+                 ai_pick += chunk
+             ai_pick = ai_pick.strip()
+             
+             # fuzzy match or exact match
+             for m in mood_options.keys():
+                 if m in ai_pick:
+                     st.session_state['selected_mood'] = m
+                     st.rerun()
+                     break
+                     
+    # Display Selectbox bound to session state
+    # We use a callback to sync manual changes back to state (or just rely on key)
+    def update_mood():
+        st.session_state['selected_mood'] = st.session_state.mood_selector
+        
     try:
-        def_index = list(mood_options.keys()).index(default_mood)
-    except ValueError:
-        def_index = 0
+        curr_index = list(mood_options.keys()).index(st.session_state['selected_mood'])
+    except:
+        curr_index = 0
 
-    selected_mood_name = st.selectbox("Select Mood", list(mood_options.keys()), index=def_index)
+    selected_mood_name = st.selectbox(
+        "Select Mood", 
+        list(mood_options.keys()), 
+        index=curr_index,
+        key="mood_selector",
+        on_change=update_mood
+    )
+    
+    # Sync if manual change happened (though callback handles it, redundancy is safe)
+    st.session_state['selected_mood'] = selected_mood_name
     
     url = mood_options[selected_mood_name]
     components.iframe(src=url, height=152)
@@ -645,48 +888,53 @@ journal_entry = st.text_area("What's on your mind?", height=100, placeholder="Po
 if st.button("Reflect & Analyze", type="primary"):
     if journal_entry:
         try:
-            # Define prompt with JSON structure instruction
+            # Container for streaming
+            stream_container = st.empty()
+            full_text = ""
+            
+            # Conversational Prompt
             prompt = f"""
-            Analyze the sentiment of this journal entry. Return a valid JSON response with two keys:
-            1) "score" (integer 1-10)
-            2) "advice" (string, max 2 sentences)
+            You are a mindful therapeutic AI. 
+            User's Journal Entry: "{journal_entry}"
             
-            Entry: "{journal_entry}"
+            1. First, estimate a Mood Score (1-10) based on the text. Format it EXACTLY like this: "Mood Score: 7/10".
+            2. Then, provide a warm, empathetic, and insightful reflection on their entry. Offer 1-2 actionable tips for their day.
             
-            Output format:
-            {{
-                "score": 7,
-                "advice": "Your advice here."
-            }}
+            Start directly with the Mood Score.
             """
             
-            response = generate_gemini_content_safe(prompt)
-            # Simple parsing
+            # Stream response
+            for chunk in generate_ollama_content(prompt):
+                full_text += chunk
+                # Live update the advice box
+                stream_container.success(f"**Insight:** \n\n{full_text}")
             
-            import json
+            # Extract Score
             import re
+            score_match = re.search(r"Mood Score:\s*(\d+)/10", full_text)
+            score_val = score_match.group(1) if score_match else "?"
             
-            text_res = response.text
-            # Try to find JSON block
-            match = re.search(r'\{.*\}', text_res, re.DOTALL)
-            if match:
-                json_str = match.group(0)
-                result = json.loads(json_str)
-                st.session_state['journal_result'] = result
-            else:
-                 # Fallback if no JSON found
-                st.session_state['journal_result'] = {"score": "?", "advice": text_res}
-                
+            # Clean text (remove the score line if desired, or keep it)
+            # We'll keep it as part of the natural flow or strip it. Let's strip it for the 'advice' part.
+            advice_clean = re.sub(r"Mood Score:\s*\d+/10", "", full_text).strip()
+            
+            result = {"score": score_val, "advice": advice_clean, "full_text": full_text}
+            st.session_state['journal_result'] = result
+            
+            # Rerun to update the Metric display properly if separate
+            st.rerun()
+
         except Exception as e:
             st.error(f"Analysis failed: {e}")
 
 # Display Result (Persistent)
-if st.session_state['journal_result']:
+if st.session_state.get('journal_result'):
     res = st.session_state['journal_result']
     
     # Mood Metric
     st.metric("Mood Score", f"{res.get('score', '?')}/10")
     
-    # Advice
-    st.success(f"**Insight:** {res.get('advice', 'No advice generated.')}")
+    # Advice (Use the full text or clean advice)
+    # If we just streamed it, it's already there, but on rerun we need to show it.
+    st.success(f"**Insight:** \n\n{res.get('full_text', res.get('advice'))}")
 

@@ -1,44 +1,31 @@
 
-# 🚀 My Daily Brief
+# 🚀 My Daily Brief v2 (Local AI Edition)
 
 ![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg) 
 ![Python Version](https://img.shields.io/badge/python-3.9%2B-blue)
-![Build Status](https://img.shields.io/badge/build-passing-brightgreen)
+![Local AI](https://img.shields.io/badge/AI-Ollama%20%7C%20Llama3.2-purple)
 
-> **"Your entire day, decoded in seconds."**  
-> A next-gen personal dashboard that blends AI intelligence, real-time data, and mindful productivity into a single, breathtaking interface.
+> **"Your entire day, decoded securely on your machine."**  
+> A next-gen personal dashboard that blends **Local AI intelligence**, real-time data, and mindful productivity into a single, breathtaking interface. **100% Privacy. 0% Cloud Cost.**
 
 ---
 
 ## 📸 Visual Preview
 
 ![Dashboard Preview](dashboard_preview.jpeg)
-*The Command Center: Weather, News, Finance, and AI Insights at a glance.*
-
----
-
-## 📑 Table of Contents
-
-- [🚀 My Daily Brief](#-my-daily-brief)
-  - [📸 Visual Preview](#-visual-preview)
-  - [📑 Table of Contents](#-table-of-contents)
-  - [💡 About](#-about)
-  - [🛠️ Tech Stack](#-tech-stack)
-  - [⚙️ Architecture & Flow](#-architecture--flow)
-  - [📦 Installation](#-installation)
-  - [🚀 Usage](#-usage)
-  - [✨ Features](#-features)
-  - [⚠️ Limitations](#-limitations)
-  - [🔮 Roadmap](#-roadmap)
-  - [🤝 Contributors](#-contributors)
+*The Command Center: Weather, News, Finance, and Local AI Insights at a glance.*
 
 ---
 
 ## 💡 About
 
-**My Daily Brief** solves the problem of "tab fatigue." Instead of opening five different apps for weather, news, stocks, todos, and music, this application aggregates them all into a high-performance, dark-mode dashboard.
+**My Daily Brief v2** solves the problem of "tab fatigue" while preserving your privacy. Instead of relying on cloud APIs for intelligence, this version runs entirely on your local hardware using **Ollama**.
 
-Powered by **Google Gemini AI**, it doesn't just show you data—it interprets it. It generates a witty executive summary of your morning, recommends outfits based on live weather patterns, and even analyzes the sentiment of your journal entries to give you life advice.
+It doesn't just show data—it has a personality:
+*   **🗣️ Speaks to you**: Listen to your daily briefing while you drink coffee.
+*   **🥊 Tough Love**: A built-in "Strict Coach" that yells at you to stop procrastinating.
+*   **🌤️ Smart Weather**: Tells you exactly what to wear based on wind/humidity.
+*   **🎧 Contextual DJ**: Picks the perfect Spotify playlist based on your workload and weather.
 
 ---
 
@@ -46,58 +33,58 @@ Powered by **Google Gemini AI**, it doesn't just show you data—it interprets i
 
 *   **Core:** Python 3.9+ 🐍
 *   **Web Framework:** Streamlit (Custom CSS & Components)
-*   **AI Engine:** Google Gemini (2.5/2.0 Flash/Pro Fallback System) 🤖
+*   **Local AI Inference:** [Ollama](https://ollama.com/) (running `llama3.2:3b`) 🦙
+*   **Audio Synthesis:** gTTS (Google Text-to-Speech) 🗣️
 *   **Data Visualization:** Plotly & Plotly Express 📊
 *   **Financial Data:** yFinance (Yahoo Finance) 📈
 *   **APIs:** OpenWeatherMap, NewsAPI, ExchangeRate-API
 
 ---
 
-## ⚙️ Architecture & Flow
+## ✨ v2 Features
 
-The application follows a **Data-Driven Retrieval & Generation (RAG-lite)** pipeline:
+### 🧠 Local AI Intelligence
+*   **🗣️ Audio Briefing**: Click "Play" to hear your AI assistant read your morning summary.
+*   **🥊 Tough Love Mode**: Toggle this in the Focus Zone to switch the AI from "Helpful Assistant" to "Demanding Coach."
+*   **🔮 Market Mood Analyst**: Witty, 1-sentence AI logic on why the market is up or down.
+*   **🌤️ AI Weather Analyst**: detailed advice on Outfit, Activity, and Health based on live metrics.
+*   **💡 Did You Know?**: Generates a fresh, mind-blowing fact every session.
 
-`User Input (City/Interactions)` ➡️ `State Management` ➡️ `Data Aggregation` ➡️ `AI Synthesis` ➡️ `UI Rendering`
-
-1.  **Input Layer**: User selects city or types journal entry.
-2.  **Orchestration**: `session_state` checks if data is cached (Lazy Loading).
-3.  **Data Fetching**:
-    *   *Weather Node*: Calls OpenWeatherMap API.
-    *   *News Node*: Calls NewsAPI.
-    *   *Market Node*: Calls yFinance.
-4.  **AI Inference Layer (Gemini)**:
-    *   *System*: Takes raw Weather + News data.
-    *   *Prompt*: "Act as a personal assistant, generate witty summary."
-    *   *Output*: Natural language briefing.
-5.  **Presentation**: Custom CSS renders the "Neo-Dark" UI with Plotly charts.
+### ⚡ Productivity & Vibe
+*   **🎩 Smart Task Breakdown**: Type "Plan a vacation" -> AI generates 5 actionable sub-tasks instantly.
+*   **⏱️ AI Task Estimator**: AI analyzes your todo list and predicts how long it will take.
+*   **🎧 Contextual DJ**: "Smart Pick" button analyzes the weather + your tasks to queue the right music (Lo-Fi vs Upbeat).
+*   **⚡ AI Quick Assist**: A built-in tool to Draft emails, Explain concepts, or Brainstorm ideas.
 
 ---
 
 ## 📦 Installation
 
 ### 1. Prerequisites
-Ensure you have **Python 3.8+** installed.
+*   **Python 3.8+**
+*   **[Ollama](https://ollama.com/)** installed and running.
 
+### 2. Setup Local AI
+Run this in your terminal to grab the lightweight model:
 ```bash
-python --version
+ollama pull llama3.2:3b
 ```
 
-### 2. Clone the Repository
+### 3. Clone the Repository
 ```bash
-git clone https://github.com/your-username/my-daily-brief.git
-cd my-daily-brief
+git clone https://github.com/Annadata-Aniketh/My-Daily-Brief-app-JP-v2.git
+cd My-Daily-Brief-app-JP-v2
 ```
 
-### 3. Install Dependencies
+### 4. Install Dependencies
 ```bash
 pip install -r my_daily_brief/requirements.txt
 ```
 
-### 4. Configure API Keys
-Create a `.env` file in the `my_daily_brief` directory:
+### 5. Configure API Keys
+Create a `.env` file in the `my_daily_brief` directory (Note: No Gemini Key needed!):
 
 ```env
-GEMINI_API_KEY=your_gemini_key_here
 WEATHER_API_KEY=your_openweather_key_here
 NEWS_API_KEY=your_newsapi_key_here
 ```
@@ -109,40 +96,14 @@ NEWS_API_KEY=your_newsapi_key_here
 Run the dashboard locally:
 
 ```bash
+# On macOS
+./run_app_macos.command
+
+# Or manually
 streamlit run my_daily_brief/app.py
 ```
 
-*The app will open automatically in your browser at `http://localhost:8501`*
-
----
-
-## ✨ Features
-
-*   **🤖 AI Morning Briefing**: A synthesized summary of the world and your local conditions.
-*   **🌦️ Weather Monitor**: Real-time stats + 5-Day Forecast Graph.
-*   **📰 News Timeline**: Color-coded top headlines with source links.
-*   **🧣 Smart Outfit**: AI-logic suggestions based on temperature and rain.
-*   **📈 Market Watch**: Live BTC, S&P 500, and NIFTY 50 tracking.
-*   **🎧 Vibe Station**: Embedded Spotify player that shifts genres based on time of day (Morning Chill vs. Upbeat Energy).
-*   **⚡ Focus Zone**: Built-in Todo list that persists during your session.
-*   **🧠 Mindful Journal**: Write your thoughts and get an AI Mood Score (1-10) and actionable advice.
-
----
-
-## ⚠️ Limitations
-
-*   **API Rate Limits**: Dependent on the free tiers of OpenWeather and NewsAPI.
-*   **Session Persistence**: Tasks and Journal entries are lost if the browser tab is fully closed (uses temporary Session State).
-*   **Local Execution**: Currently designed for local hosting; cloud deployment requires setting secrets in the host platform.
-
----
-
-## 🔮 Roadmap
-
-- [ ] **Database Integration**: Save Journal entries and Todos permanently (SQLite/Postgres).
-- [ ] **Voice Mode**: Speak to the dashboard using Speech-to-Text.
-- [ ] **Calendar Sync**: Google Calendar integration for agenda view.
-- [ ] **Mobile Responsive**: Optimize CSS for phone screens.
+*The app will auto-start the Ollama server if it's not running!*
 
 ---
 
@@ -157,4 +118,4 @@ streamlit run my_daily_brief/app.py
 
 ---
 
-*Built with ❤️ in Python.*
+*Built with ❤️ and Local Compute.*
