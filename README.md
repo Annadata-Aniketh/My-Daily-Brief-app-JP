@@ -112,6 +112,9 @@ streamlit run my_daily_brief/app.py
 | Name | Role |
 | :--- | :--- |
 | **AVS Aniketh** | Lead Developer |
+| **Akash** | Developer |
+| **Arun Patil** | Developer |
+| **Arvind** | Developer |
 
 ---
 
