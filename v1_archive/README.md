@@ -1,9 +1,20 @@
 
-# 🚀 My Daily Brief
+# 🚀 My Daily Brief - v1
 
 ![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg) 
 ![Python Version](https://img.shields.io/badge/python-3.9%2B-blue)
 ![Build Status](https://img.shields.io/badge/build-passing-brightgreen)
+
+# Version 1 Archive
+
+**Archived on:** February 5, 2026
+
+## Description
+This folder contains the source code for the first version of this project. It is kept here for historical reference.
+
+## Key Differences
+* This version uses Gemini family of models to perform generative ai tasks.
+* Some extra features were added to the v2 version and the generative ai tasks run locally on device without any api keys.
 
 > **"Your entire day, decoded in seconds."**  
 > A next-gen personal dashboard that blends AI intelligence, real-time data, and mindful productivity into a single, breathtaking interface.
